@@ -7,7 +7,7 @@
 #include <string.h>
 
 #define PATH "/home/pesho/Documents/My Programs/C/TUES/pizza_file_system/files/"
-
+// The code below, which defines the functions getch and getche, is copied from the internet.
 #include <termios.h>
 
 static struct termios old, new;
