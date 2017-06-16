@@ -1,13 +1,19 @@
-/* TODO
-    Add an option to delete pizzas.
+/*
+    TODO:
+    - delete pizza ingredients (similar to how I delete pizzas from files)
+    - integrate add_pizza into edit_pizza
+        -- problems with removing last pizza in file
+        -- ingredients when adding a new pizza are copied from first pizza
+    - list files in /files/
 */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #define PATH "/home/pesho/Documents/My Programs/C/TUES/pizza_file_system/files/"
-// The code below, which defines the functions getch and getche, is copied from the internet.
+
 #include <termios.h>
 
 static struct termios old, new;
@@ -63,6 +69,7 @@ char * str_lower(char *);
 char * cut_str(char *, char);
 char * get_filename();
 char * nix_filename(char *);
+int file_exists(char *, short int);
 
 void print_pizza(struct Pizza *);
 int create_file(char *);
@@ -77,13 +84,16 @@ int main() {
         "[C]reate file",
         "[R]emove file",
         "[E]dit pizza",
+        "[S]et filename",
         "[Q]uit"
     };
 
     char opt;
-    char *filename;
+    char *filename = NULL, *temp;
     short int i;
     do {
+        printf("File:\n\"%s\"\n\n", filename);
+
         for(i = 0; i < sizeof(options) / sizeof(options[0]); i++) {
             if(!strcmp(options[i], "\0")) // break when the end of the array is reached
                 break;
@@ -95,16 +105,11 @@ int main() {
         getchar(); // eat up the space
         switch(opt) {
             case 'd': 
-                printf("Please, specify the path of the file from which you wish to read data:\n");
-                filename = get_filename();
-                system("clear");
                 edit_pizza(filename, 'd');
                 break;
             case 'a':
-                printf("Please, specify the path of the file in which you wish to add a pizza:\n");
-                filename = get_filename();
                 system("clear");
-                add_pizza(filename);
+                edit_pizza(filename, 'a');
                 break;
             case 'c':
                 printf("Please, specify the name of the file you wish to create:\n");
@@ -112,21 +117,27 @@ int main() {
                 create_file(filename);
                 break;
             case 'r':
-                printf("Please, specify the name of the file you wish to delete:\n");
-                filename = get_filename();
                 delete_file(filename);
+                filename = NULL;
                 break;
             case 'e':
-                printf("Please, specify the path of the file in which your pizza is located:\n");
-                filename = get_filename();
-                system("clear");
                 edit_pizza(filename, 'e');
+                break;
+            case 's':
+                printf("Please, specify the file you wish to work with:\n");
+                temp = get_filename();
+                if(!file_exists(temp, 1)) {
+                    printf("This file doesn't exist.\n");
+                }
+                else {
+                    filename = temp;
+                }
                 break;
             case 'q':
                 printf("Goodbye!\n");
                 break;
             default:
-                printf("Please enter a valid option (in brackets).\n");
+                printf("Please, enter a valid option (in brackets).\n");
                 break;
         }
 
@@ -194,6 +205,24 @@ char * nix_filename(char *filename) {
     free(filename); // filename is obsolete at this point
 
     return nix_fn;
+}
+
+int file_exists(char *filename, short int binary) {
+    // return 1 if file exist, otherwise - 0
+    FILE *file;
+    
+    if(binary)
+        file = fopen(filename, "rb");
+    else
+        file = fopen(filename, "r");
+
+    if(file) {
+        fclose(file);
+        return 1;
+    }
+    else {
+        return 0;
+    }
 }
 
 void print_pizza(struct Pizza *pizza) {
@@ -336,11 +365,18 @@ int add_pizza(char *filename) {
 int edit_pizza(char *filename, char mode) {
     FILE *file;
 
-    file = fopen(filename, "rb+");
+    if(mode == 'a' || mode == 'e')
+        file = fopen(filename, "rb+");
+    else
+        file = fopen(filename, "rb");
+
     if(file) {
         struct Pizza pizza;
  
-        short int done = 0, cur_pos = 0;
+        short int done = 0, cur_pos = 0, num_pizzas = 0;
+        while(fread(&pizza, sizeof(pizza), 1, file))
+            num_pizzas++;
+
         char opt;
         while(!done) {
             system("clear");
@@ -353,6 +389,7 @@ int edit_pizza(char *filename, char mode) {
             
             printf("\nUse the up and down arrow keys to navigate the menu.\n");
             printf("Press 'q' to exit.\n");
+            if(mode == 'a') printf("Press 'a' to add a new pizza.\n");
             if(mode == 'e') printf("Hit 'ENTER' to start editing.\n");
             printf("Current pizza: %d\n", cur_pos+1);
 
@@ -364,9 +401,24 @@ int edit_pizza(char *filename, char mode) {
                         if(cur_pos > 0) cur_pos--;
                         break;
                     case 'B': // down arrow 
-                        if(fgetc(file) != EOF) cur_pos++;
+                        // if(fgetc(file) != EOF) cur_pos++; // old condition (still functional)
+                        if(cur_pos < num_pizzas-1) cur_pos++;
                         break;
                 }
+            }
+            else if(opt == 'a' && mode == 'a') { // add a new pizza
+                strcpy(pizza.name, "NAME");
+                pizza.price = 0.0;
+                pizza.diameter = 0;
+                pizza.weight = 0;
+
+                fseek(file, 0, SEEK_END);
+                fwrite(&pizza, sizeof(pizza), 1, file);
+
+                printf("\nA new pizza has been added to the end of the file.\n");
+                printf("(you may edit it by entering edit mode).\n");
+                printf("Press any key to continue...\n");
+                getchar();
             }
             else if(opt == '\012' && mode == 'e') { // newline ASCII value
                 // edit mode
@@ -377,10 +429,11 @@ int edit_pizza(char *filename, char mode) {
                     "[D]iameter",
                     "[W]eight",
                     "[S]ave",
+                    "[R]emove",
                     "[C]ancel"
                 };
 
-                char opt, arr;
+                char opt, arr, del_opt;
                 short int i, cursor = 0;
                 do {
                     system("clear");
@@ -465,6 +518,37 @@ int edit_pizza(char *filename, char mode) {
                             fseek(file, sizeof(pizza) * cur_pos, SEEK_SET);
                             fwrite(&pizza, sizeof(pizza), 1, file);
                             break;
+                        case 'r': 
+                            printf("WARNING: the pizza '%s' will be deleted forever! Continue ", pizza.name);
+                            do {
+                                printf("(y/N)?: ");
+                                del_opt = char_lower(getchar());
+                                getchar(); // eat up a space
+                            }
+                            while(del_opt != 'y' && del_opt != 'n');
+                            
+                            if(del_opt == 'y') {
+                                // read last pizza
+                                fseek(file, sizeof(pizza) * (num_pizzas-1), SEEK_SET);
+                                fread(&pizza, sizeof(pizza), 1, file);
+
+                                // copy last pizza to current position
+                                fseek(file, sizeof(pizza) * cur_pos, SEEK_SET);
+                                fwrite(&pizza, sizeof(pizza), 1, file);
+
+                                // shrink file size
+                                num_pizzas--;
+                                ftruncate(fileno(file), sizeof(pizza) * num_pizzas);
+                                cur_pos = 0; // display first pizza
+
+                                printf("Pizza has successfully been deleted. Press any key to continue...\n");
+                                getchar();
+                            }
+                            else {
+                                printf("Pizza deletion cancelled. Press any key to continue...\n");
+                                getchar();
+                            }
+                            break;
                         case 'c':
                             break;
                         default:
@@ -472,7 +556,7 @@ int edit_pizza(char *filename, char mode) {
                             break;
                     }
                 }
-                while(opt != 's' && opt != 'c');
+                while(opt != 's' && opt != 'c' && opt != 'r');
             }
             else if(char_lower(opt) == 'q') {
                 done = 1;
