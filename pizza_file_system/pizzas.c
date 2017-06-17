@@ -1,9 +1,6 @@
 /*
     TODO:
     - delete pizza ingredients (similar to how I delete pizzas from files)
-    - integrate add_pizza into edit_pizza
-        -- problems with removing last pizza in file
-        -- ingredients when adding a new pizza are copied from first pizza
     - list files in /files/
 */
 
@@ -14,6 +11,7 @@
 
 #define PATH "/home/pesho/Documents/My Programs/C/TUES/pizza_file_system/files/"
 
+// The code for functions getch and getche haven't been written by me and are copied from the internet
 #include <termios.h>
 
 static struct termios old, new;
@@ -117,8 +115,8 @@ int main() {
                 create_file(filename);
                 break;
             case 'r':
-                delete_file(filename);
-                filename = NULL;
+                if(!delete_file(filename)) // returns 0 if file has been deleted
+                    filename = NULL;
                 break;
             case 'e':
                 edit_pizza(filename, 'e');
@@ -300,6 +298,7 @@ int delete_file(char *filename) {
     }
 }
 
+// this function is obsolete as it is integrated into edit_pizza
 int add_pizza(char *filename) {
     FILE *file;
     
@@ -372,16 +371,31 @@ int edit_pizza(char *filename, char mode) {
 
     if(file) {
         struct Pizza pizza;
- 
-        short int done = 0, cur_pos = 0, num_pizzas = 0;
-        while(fread(&pizza, sizeof(pizza), 1, file))
-            num_pizzas++;
 
+        // edit mode variables 
+        const char options[10][20] = {
+            "[N]ame",
+            "[I]ngredients",
+            "[P]rice",
+            "[D]iameter",
+            "[W]eight",
+            "[S]ave",
+            "[R]emove",
+            "[C]ancel"
+        };
+
+        char arr, del_opt;
+        short int i, cursor;
+
+        // general variables
         char opt;
+        short int done = 0, cur_pos = 0, num_pizzas = 0;
+        while(fread(&pizza, sizeof(pizza), 1, file)) num_pizzas++;
+
         while(!done) {
             system("clear");
             printf("Current directory: %s\n\n", filename); 
-
+ 
             fseek(file, sizeof(pizza) * cur_pos, SEEK_SET);
             if(fread(&pizza, sizeof(pizza), 1, file)) {
                 print_pizza(&pizza);
@@ -411,6 +425,14 @@ int edit_pizza(char *filename, char mode) {
                 pizza.price = 0.0;
                 pizza.diameter = 0;
                 pizza.weight = 0;
+                // reset pizza.ingrediets
+                for(i = 1; i < sizeof(pizza.ingredients) / sizeof(pizza.ingredients[0]); i++) {
+                    if(!strcmp(pizza.ingredients[i], "\0"))
+                        break;
+                    else
+                        memset(pizza.ingredients[i], '\0', sizeof(pizza.ingredients[i]));
+                }
+                strcpy(pizza.ingredients[0], "tomato sauce");
 
                 fseek(file, 0, SEEK_END);
                 fwrite(&pizza, sizeof(pizza), 1, file);
@@ -422,19 +444,7 @@ int edit_pizza(char *filename, char mode) {
             }
             else if(opt == '\012' && mode == 'e') { // newline ASCII value
                 // edit mode
-                const char options[10][20] = {
-                    "[N]ame",
-                    "[I]ngredients",
-                    "[P]rice",
-                    "[D]iameter",
-                    "[W]eight",
-                    "[S]ave",
-                    "[R]emove",
-                    "[C]ancel"
-                };
-
-                char opt, arr, del_opt;
-                short int i, cursor = 0;
+                cursor = 0;
                 do {
                     system("clear");
                     print_pizza(&pizza);
@@ -528,14 +538,15 @@ int edit_pizza(char *filename, char mode) {
                             while(del_opt != 'y' && del_opt != 'n');
                             
                             if(del_opt == 'y') {
-                                // read last pizza
-                                fseek(file, sizeof(pizza) * (num_pizzas-1), SEEK_SET);
-                                fread(&pizza, sizeof(pizza), 1, file);
-
-                                // copy last pizza to current position
-                                fseek(file, sizeof(pizza) * cur_pos, SEEK_SET);
-                                fwrite(&pizza, sizeof(pizza), 1, file);
-
+                                if(cur_pos < num_pizzas-1) { // no need to do these operations for last pizza
+                                    // read last pizza
+                                    fseek(file, sizeof(pizza) * (num_pizzas-1), SEEK_SET);
+                                    fread(&pizza, sizeof(pizza), 1, file);
+                                    
+                                    // copy last pizza to current position
+                                    fseek(file, sizeof(pizza) * cur_pos, SEEK_SET);
+                                    fwrite(&pizza, sizeof(pizza), 1, file);
+                                }
                                 // shrink file size
                                 num_pizzas--;
                                 ftruncate(fileno(file), sizeof(pizza) * num_pizzas);
@@ -553,6 +564,7 @@ int edit_pizza(char *filename, char mode) {
                             break;
                         default:
                             printf("Please enter a valid option (in brackets).\n");
+                            getchar();
                             break;
                     }
                 }
@@ -562,7 +574,9 @@ int edit_pizza(char *filename, char mode) {
                 done = 1;
             }
         }
-
+        
+        if(cur_pos == num_pizzas-1) 
+            ftruncate(fileno(file), sizeof(pizza) * num_pizzas); // delete last object
         fclose(file);
         return 0;
     }
@@ -571,3 +585,4 @@ int edit_pizza(char *filename, char mode) {
         return -1;
     }
 }
+
