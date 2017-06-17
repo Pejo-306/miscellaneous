@@ -1,6 +1,5 @@
 /*
     TODO:
-    - delete pizza ingredients (similar to how I delete pizzas from files)
     - list files in /files/
 */
 
@@ -66,12 +65,15 @@ char char_lower(char);
 char * str_lower(char *);
 char * cut_str(char *, char);
 char * get_filename();
+char * get_filepath(char *, const char *);
 char * nix_filename(char *);
 int file_exists(char *, short int);
+void clear();
 
 void print_pizza(struct Pizza *);
 int create_file(char *);
 int delete_file(char *);
+int old_add_pizza(char *);
 int add_pizza(char *);
 int edit_pizza(char *, char);
 
@@ -106,16 +108,15 @@ int main() {
                 edit_pizza(filename, 'd');
                 break;
             case 'a':
-                system("clear");
-                edit_pizza(filename, 'a');
+                add_pizza(get_filepath(filename, PATH));
                 break;
             case 'c':
                 printf("Please, specify the name of the file you wish to create:\n");
                 filename = get_filename();
-                create_file(filename);
+                create_file(get_filepath(filename, PATH));
                 break;
             case 'r':
-                if(!delete_file(filename)) // returns 0 if file has been deleted
+                if(!delete_file(get_filepath(filename, PATH))) // returns 0 if file has been deleted
                     filename = NULL;
                 break;
             case 'e':
@@ -124,7 +125,7 @@ int main() {
             case 's':
                 printf("Please, specify the file you wish to work with:\n");
                 temp = get_filename();
-                if(!file_exists(temp, 1)) {
+                if(!file_exists(get_filepath(temp, PATH), 1)) {
                     printf("This file doesn't exist.\n");
                 }
                 else {
@@ -178,18 +179,24 @@ char * cut_str(char *str, char symbol) {
 }
 
 char * get_filename() {
-    char *filename = (char *) malloc(sizeof(char) * 200);
+    char *filename = (char *) malloc(sizeof(char) * 100);
 
     // input filename
-    char inp[200];
-    printf("%s", PATH);
-    fgets(inp, 200, stdin);
-
-    // prepend PATH to the filename
-    strcpy(filename, PATH);
-    strcat(filename, cut_str(inp, '\n'));
+    char inp[100];
+    fgets(inp, 100, stdin);
+    strcpy(filename, cut_str(inp, '\n'));
 
     return filename;
+}
+
+char * get_filepath(char *filename, const char *path) {
+    char *filepath = (char *) malloc(sizeof(char) * 255);
+
+    // prepend PATH to the filepath
+    strcpy(filepath, path);
+    strcat(filepath, filename);
+
+    return filepath;
 }
 
 // this function is obsolete for this project but is pretty useful
@@ -205,14 +212,14 @@ char * nix_filename(char *filename) {
     return nix_fn;
 }
 
-int file_exists(char *filename, short int binary) {
+int file_exists(char *filepath, short int binary) {
     // return 1 if file exist, otherwise - 0
     FILE *file;
     
     if(binary)
-        file = fopen(filename, "rb");
+        file = fopen(filepath, "rb");
     else
-        file = fopen(filename, "r");
+        file = fopen(filepath, "r");
 
     if(file) {
         fclose(file);
@@ -239,17 +246,17 @@ void print_pizza(struct Pizza *pizza) {
     printf("price: $%4.2lf\n", pizza->price);
 }
 
-int create_file(char *filename) {
+int create_file(char *filepath) {
     FILE *file;
 
-    file = fopen(filename, "rb");
+    file = fopen(filepath, "rb");
     if(file) {
         printf("This file already exits.\n");
         fclose(file);
         return 1;
     }
     else {
-        file = fopen(filename, "wb");
+        file = fopen(filepath, "wb");
         if(file) {
             printf("File has successfully been created.\n");
             fclose(file);
@@ -262,10 +269,10 @@ int create_file(char *filename) {
     }
 }
 
-int delete_file(char *filename) {
+int delete_file(char *filepath) {
     FILE *file;
 
-    file = fopen(filename, "rb");
+    file = fopen(filepath, "rb");
     if(file) {
         printf("WARNING: the specified file will be deleted forever! Continue ");
         
@@ -278,7 +285,7 @@ int delete_file(char *filename) {
         while(opt != 'y' && opt != 'n');
         
         if(opt  == 'y') {
-            int res = remove(filename);
+            int res = remove(filepath);
             if(!res) {
                 printf("File has successfully been deleted.\n");
             }
@@ -299,7 +306,7 @@ int delete_file(char *filename) {
 }
 
 // this function is obsolete as it is integrated into edit_pizza
-int add_pizza(char *filename) {
+int old_add_pizza(char *filename) {
     FILE *file;
     
     file = fopen(filename, "rb");
@@ -361,13 +368,41 @@ int add_pizza(char *filename) {
     }
 }
 
+int add_pizza(char *filepath) {
+    FILE *file;
+    
+    file = fopen(filepath, "rb");
+    if(file) {
+        fclose(file);
+
+        struct Pizza pizza;
+        strcpy(pizza.name, "NAME");
+        pizza.price = 0.0;
+        pizza.diameter = 0;
+        pizza.weight = 0;
+        strcpy(pizza.ingredients[0], "tomato sauce");
+
+        file = fopen(filepath, "ab");
+        fwrite(&pizza, sizeof(pizza), 1, file);
+
+        printf("\nA new pizza has been added to the end of the file.\n");
+        printf("(you may edit it by entering edit mode).\n");
+        fclose(file);
+        return 0;
+    }
+    else { 
+        printf("This file doesn't exist.\n");
+        return -1;
+    }
+}
+
 int edit_pizza(char *filename, char mode) {
     FILE *file;
 
-    if(mode == 'a' || mode == 'e')
-        file = fopen(filename, "rb+");
+    if(mode == 'e')
+        file = fopen(get_filepath(filename, PATH), "rb+");
     else
-        file = fopen(filename, "rb");
+        file = fopen(get_filepath(filename, PATH), "rb");
 
     if(file) {
         struct Pizza pizza;
@@ -394,7 +429,7 @@ int edit_pizza(char *filename, char mode) {
 
         while(!done) {
             system("clear");
-            printf("Current directory: %s\n\n", filename); 
+            printf("Current file: \"%s\"\n\n", filename); 
  
             fseek(file, sizeof(pizza) * cur_pos, SEEK_SET);
             if(fread(&pizza, sizeof(pizza), 1, file)) {
@@ -403,7 +438,6 @@ int edit_pizza(char *filename, char mode) {
             
             printf("\nUse the up and down arrow keys to navigate the menu.\n");
             printf("Press 'q' to exit.\n");
-            if(mode == 'a') printf("Press 'a' to add a new pizza.\n");
             if(mode == 'e') printf("Hit 'ENTER' to start editing.\n");
             printf("Current pizza: %d\n", cur_pos+1);
 
@@ -419,28 +453,6 @@ int edit_pizza(char *filename, char mode) {
                         if(cur_pos < num_pizzas-1) cur_pos++;
                         break;
                 }
-            }
-            else if(opt == 'a' && mode == 'a') { // add a new pizza
-                strcpy(pizza.name, "NAME");
-                pizza.price = 0.0;
-                pizza.diameter = 0;
-                pizza.weight = 0;
-                // reset pizza.ingrediets
-                for(i = 1; i < sizeof(pizza.ingredients) / sizeof(pizza.ingredients[0]); i++) {
-                    if(!strcmp(pizza.ingredients[i], "\0"))
-                        break;
-                    else
-                        memset(pizza.ingredients[i], '\0', sizeof(pizza.ingredients[i]));
-                }
-                strcpy(pizza.ingredients[0], "tomato sauce");
-
-                fseek(file, 0, SEEK_END);
-                fwrite(&pizza, sizeof(pizza), 1, file);
-
-                printf("\nA new pizza has been added to the end of the file.\n");
-                printf("(you may edit it by entering edit mode).\n");
-                printf("Press any key to continue...\n");
-                getchar();
             }
             else if(opt == '\012' && mode == 'e') { // newline ASCII value
                 // edit mode
@@ -471,6 +483,7 @@ int edit_pizza(char *filename, char mode) {
                                 system("clear");
                                 printf("Select the value you wish to change (hit 'ENTER')...\n");
                                 printf("Add a new ingredient by pressing 'a'.\n");
+                                printf("Remove an ingredient by pressing 'r'\n");
                                 printf("Return to pizza edit menu by pressing 'q'.\n\n");
 
                                 // list ingredients
@@ -504,6 +517,22 @@ int edit_pizza(char *filename, char mode) {
                                     printf("New value (add): ");
                                     fgets(pizza.ingredients[i], sizeof(pizza.ingredients[i]), stdin);
                                     strcpy(pizza.ingredients[i], cut_str(pizza.ingredients[i], '\n'));
+                                }
+                                else if(char_lower(arr) == 'r') {
+                                    printf("Delete '%s' ", pizza.ingredients[cursor]);
+                                    do {
+                                        printf("(y/N)?: ");
+                                        del_opt = char_lower(getchar());
+                                        getchar(); // eat up a space
+                                    }
+                                    while(del_opt != 'y' && del_opt != 'n');
+                                    
+                                    if(del_opt == 'y') {
+                                        // copy last element to current position
+                                        strcpy(pizza.ingredients[cursor], pizza.ingredients[i-1]);
+                                        // reset last element
+                                        strcpy(pizza.ingredients[i-1], "\0");
+                                    }
                                 }
                             }
                             while(char_lower(arr) != 'q');
