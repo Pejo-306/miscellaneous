@@ -1,8 +1,3 @@
-/*
-    TODO:
-    - list files in /files/
-*/
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -66,7 +61,7 @@ char * str_lower(char *);
 char * cut_str(char *, char);
 char * get_filename();
 char * get_filepath(char *, const char *);
-char * nix_filename(char *);
+char * nix_filepath(char *);
 int file_exists(char *, short int);
 void clear();
 
@@ -85,11 +80,14 @@ int main() {
         "[R]emove file",
         "[E]dit pizza",
         "[S]et filename",
+        "[L]ist files",
         "[Q]uit"
     };
 
     char opt;
-    char *filename = NULL, *temp;
+    char *filename = NULL, *temp, cmd[255];
+    strcpy(cmd, "ls -l ");
+    strcat(cmd, nix_filepath(PATH));
     short int i;
     do {
         printf("File:\n\"%s\"\n\n", filename);
@@ -132,8 +130,15 @@ int main() {
                     filename = temp;
                 }
                 break;
+            case 'l':
+                printf("%s\n", PATH);
+                system(cmd);
+                break;
             case 'q':
                 printf("Goodbye!\n");
+                break;
+            case '!':
+                system("sl");
                 break;
             default:
                 printf("Please, enter a valid option (in brackets).\n");
@@ -199,17 +204,14 @@ char * get_filepath(char *filename, const char *path) {
     return filepath;
 }
 
-// this function is obsolete for this project but is pretty useful
-char * nix_filename(char *filename) {
-    char *nix_fn = (char *) malloc(sizeof(filename));
+char * nix_filepath(char *filename) {
+    char *path = (char *) malloc(sizeof(char) * 255);
     
-    strcpy(nix_fn, "\"");
-    strcat(nix_fn, filename);
-    strcat(nix_fn, "\"");
+    strcpy(path, "\"");
+    strcat(path, filename);
+    strcat(path, "\"");
 
-    free(filename); // filename is obsolete at this point
-
-    return nix_fn;
+    return path;
 }
 
 int file_exists(char *filepath, short int binary) {
@@ -302,69 +304,6 @@ int delete_file(char *filepath) {
     else {
         printf("This file doesn't exist.\n");
         return 1;
-    }
-}
-
-// this function is obsolete as it is integrated into edit_pizza
-int old_add_pizza(char *filename) {
-    FILE *file;
-    
-    file = fopen(filename, "rb");
-    if(file) {
-        fclose(file);
-
-        file = fopen(filename, "ab"); 
-        struct Pizza pizza;
- 
-        char ingr[sizeof(pizza.ingredients[0])];
-        short int done = 0, i;
-        char opt;
-        while(!done) {
-            system("clear");
-            printf("Current directory: %s\n\n", filename);
- 
-            printf("Pizza name: ");
-            fgets(pizza.name, sizeof(pizza.name), stdin);
-            strcpy(pizza.name, cut_str(pizza.name, '\n'));
-
-            printf("\nDiameter (in cm): ");
-            scanf("%d", &pizza.diameter);
-            printf("Weight (in grams): ");
-            scanf("%d", &pizza.weight);
-            printf("Price (in USD): ");
-            scanf("%lf", &pizza.price);
-
-            getchar(); // eat up the space
-            printf("\nIngredients (max 20) (type ':q' to quit)):\n");
-            
-            for(i = 0; i < sizeof(pizza.ingredients) / sizeof(pizza.ingredients[0]); i++) {
-                printf("%d(/20): ", i+1);
-                fgets(ingr, sizeof(ingr), stdin);
-                strcpy(ingr, cut_str(ingr, '\n'));
-                if(!strcmp(ingr, ":q"))
-                    break;
-                strcpy(pizza.ingredients[i], ingr);
-            }
-
-            fwrite(&pizza, sizeof(pizza), 1, file);
-
-            printf("Would you like to add another ");
-            do {
-                printf("(y/N)?: ");
-                opt = char_lower(getchar());
-                getchar(); // eat up a space
-            }
-            while(opt != 'y' && opt != 'n');
-            if(opt  == 'n') done = 1;
-            else printf("\n");
-        }
-
-        fclose(file);
-        return 0;
-    }
-    else {
-        printf("This file doesn't exist!\n");
-        return -1;
     }
 }
 
